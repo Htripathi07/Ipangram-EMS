@@ -3,7 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const cors = require("cors");
-
+const { createProxyMiddleware } = require('http-proxy-middleware');
 const { connection } = require("./config/db");
 const { UserModel } = require("./models/User.model");
 const { DepartmentModel } = require("./models/Departments");
@@ -14,20 +14,34 @@ const PORT = 3001;
 
 const app = express();
 const corsOptions = {
-  origin: "http://localhost:3000", // Your frontend URL
-  credentials: true, // To allow cookies and authorization headers with CORS requests
+  origin: "*"
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
 
+
+
+module.exports = function(app) {
+  app.use(
+    '/api',
+    createProxyMiddleware({
+      target: 'https://busy-lime-marlin-cuff.cyclic.app',
+      changeOrigin: true,
+    })
+  );
+};
 app.get("/", (req, res) => {
   res.send({ message: "Base Api route" });
 });
 
+
+
+
+
+
 app.post("/signup", async (req, res) => {
   let { name, email, password, role, location } = req.body;
-  //   console.log(req.body);
   bcrypt.hash(password, 4, async function (err, hash) {
     const new_user = new UserModel({
       name,
@@ -47,6 +61,9 @@ app.post("/signup", async (req, res) => {
     }
   });
 });
+
+
+
 
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
@@ -90,6 +107,13 @@ app.post("/login", async (req, res) => {
   }
 });
 
+
+
+
+
+
+
+
 app.get("/departments", async (req, res) => {
   try {
     const departments = await DepartmentModel.find();
@@ -98,6 +122,11 @@ app.get("/departments", async (req, res) => {
     res.status(500).json({ message: "Error fetching departments" });
   }
 });
+
+
+
+
+
 app.post("/departments", async (req, res) => {
   const { name } = req.body;
   try {
@@ -113,6 +142,14 @@ app.post("/departments", async (req, res) => {
     res.status(500).json({ message: "Error creating department" });
   }
 });
+
+
+
+
+
+
+
+
 app.put("/departments/:id", async (req, res) => {
   const { id } = req.params;
   try {
@@ -127,6 +164,8 @@ app.put("/departments/:id", async (req, res) => {
   }
 });
 
+
+
 app.delete("/departments/:id", async (req, res) => {
   const { id } = req.params;
   try {
@@ -136,6 +175,7 @@ app.delete("/departments/:id", async (req, res) => {
     res.status(500).json({ message: "Error deleting department" });
   }
 });
+
 
 
 app.post('/employees', async (req, res) => {
@@ -148,6 +188,9 @@ app.post('/employees', async (req, res) => {
   }
 });
 
+
+
+
 app.get('/employees', async (req, res) => {
   try {
       const employees = await EmployeeModel.find();
@@ -156,6 +199,10 @@ app.get('/employees', async (req, res) => {
       res.status(500).json({ message: error.message });
   }
 });
+
+
+
+
 
 app.get('/employees/:id', async (req, res) => {
   try {
@@ -168,6 +215,9 @@ app.get('/employees/:id', async (req, res) => {
       res.status(500).json({ message: error.message });
   }
 });
+
+
+
 
 app.put('/employees/:id', async (req, res) => {
   try {
@@ -182,6 +232,9 @@ app.put('/employees/:id', async (req, res) => {
   }
 });
 
+
+
+
 app.delete('/employees/:id', async (req, res) => {
   try {
       const employee = await EmployeeModel.findByIdAndDelete(req.params.id);
@@ -193,6 +246,88 @@ app.delete('/employees/:id', async (req, res) => {
       res.status(500).json({ message: error.message });
   }
 });
+
+
+app.get("/getEmployeesByDepartMent/:id",async(req,res)=>{
+
+  try {
+    const employee = await EmployeeModel.findById(req.params.id);
+
+  } catch (error) {
+    
+  }
+})
+
+
+//api for getting the  employee list via deparment ids
+app.get('/employees/byDepartmentId', async (req, res) => {
+  const departmentId = req.body.departmentId;
+  try {
+    const department = await DepartmentModel.findById(departmentId);
+
+    if (!department) {
+      return res.status(404).json({ message: 'Department not found' });
+    }
+
+  
+    const employees = await EmployeeModel.find({ department: departmentId }).populate({
+      path: 'department',
+      select: 'name _id', 
+    });
+
+    res.json({
+      department: department,
+      employees: employees,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+
+///this is the api for the getting the employee listing by the  location filter
+app.get('/employeeFilterByLocation', async (req, res) => {
+  const { location } = req.body;
+
+  try {
+    const employees = await EmployeeModel.find({ location: location });
+    res.json({ employees: employees });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+
+
+
+
+
+
+// this is the api for the getting the employee listing by the  asc and desc order
+app.get('/EmployeeFilter', async (req, res) => {
+  const { order } = req.body;
+
+  try {
+    let sortOption = {};
+
+    if (order === 'asc') {
+      sortOption = { name: 1 };
+    } else if (order === 'desc') {
+      sortOption = { name: -1 };
+    } else {
+      return res.status(400).json({ message: 'Invalid order parameter. Use "asc" or "desc".' });
+    }
+
+    const employees = await EmployeeModel.find().sort(sortOption);
+    res.json({ employees: employees });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+
+
+
 
 
 app.listen(PORT, async () => {
